@@ -1,0 +1,128 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat-App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-200 flex items-center justify-center min-h-screen">
+  <!-- Smartphone-Container -->
+  <div class="relative w-[320px] h-[640px] bg-gray-800 rounded-[40px] shadow-xl p-4 flex flex-col">
+    <!-- Smartphone-Bildschirm -->
+    <div class="absolute top-0 left-0 w-full h-full bg-white rounded-[32px] overflow-hidden flex flex-col">
+      <!-- Statusleiste -->
+      <div class="bg-gray-900 text-white text-center py-2 text-sm flex justify-between px-4">
+        <span>9:41</span>
+        <span>📶 🔋</span>
+      </div>
+      <!-- Chat-Header -->
+      <div class="bg-green-500 text-white p-3 flex items-center">
+        <span class="text-lg font-bold">Chat</span>
+      </div>
+      <!-- Chat-Bereich -->
+      <div id="chatArea" class="flex-1 p-4 overflow-y-auto bg-gray-100"></div>
+      <!-- Eingabebereich -->
+      <div class="p-4 bg-white flex items-center border-t">
+        <input id="messageInput" type="text" placeholder="Nachricht eingeben..." class="flex-1 p-2 border rounded-l-full focus:outline-none">
+        <button id="sendButton" class="bg-green-500 text-white p-2 rounded-r-full">➡️</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const chatArea = document.getElementById('chatArea');
+
+    // Nachrichten aus localStorage laden
+    let messages = JSON.parse(localStorage.getItem('messages')) || [];
+    renderMessages();
+
+    // Nachricht senden
+    sendButton.addEventListener('click', () => {
+      const text = messageInput.value.trim();
+      if (!text) {
+        alert('Bitte eine Nachricht eingeben!');
+        return;
+      }
+
+      const message = {
+        id: Date.now(),
+        text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      messages.push(message);
+      localStorage.setItem('messages', JSON.stringify(messages));
+      renderMessages();
+      messageInput.value = '';
+      scrollToBottom();
+    });
+
+    // Nachrichten rendern
+    function renderMessages() {
+      chatArea.innerHTML = '';
+      messages.forEach(message => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'mb-2 p-2 bg-green-100 rounded-lg max-w-[80%] ml-auto';
+        messageDiv.innerHTML = `
+          <p>${message.text}</p>
+          <span class="text-xs text-gray-500">${message.timestamp}</span>
+        `;
+        chatArea.appendChild(messageDiv);
+      });
+    }
+
+    // Zum unteren Ende des Chats scrollen
+    function scrollToBottom() {
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Eingabe mit Enter-Taste
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendButton.click();
+      }
+    });
+  </script>
+</body>
+</html>
